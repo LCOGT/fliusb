@@ -71,8 +71,6 @@ MODULE_VERSION("1.3");
 	#define init_MUTEX(sem) sema_init(sem, 1)
 #endif
 
-struct mutex fliusb_mutex;
-
 /* Module parameters */
 typedef struct {
 	unsigned int buffersize;
@@ -810,19 +808,11 @@ static void fliusb_disconnect(struct usb_interface *interface)
 {
 	fliusb_t *dev;
 
-	/*
-	 * this is to block entry to fliusb_open() while the device is being
-	 * disconnected
-	 */
-	mutex_lock(&fliusb_mutex);
-
 	dev = usb_get_intfdata(interface);
 	usb_set_intfdata(interface, NULL);
 
 	/* give back the minor number we were using */
 	usb_deregister_dev(interface, &fliusb_class);
-
-	mutex_unlock(&fliusb_mutex);
 
 	/* decrement usage count */
 	kref_put(&dev->kref, fliusb_delete);
@@ -836,8 +826,6 @@ static int __init fliusb_init(void)
 
 	if ((err = usb_register(&fliusb_driver)))
 		FLIUSB_ERR("usb_register() failed: %d", err);
-
-	mutex_init(&fliusb_mutex);
 
 	FLIUSB_INFO(FLIUSB_NAME " module loaded");
 
