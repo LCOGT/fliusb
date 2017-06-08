@@ -132,6 +132,17 @@ struct fliusb_dev {
 	} while (0)
 #endif
 
+/* Compatibility for old kernels */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION (2,6,24))
+static inline void sg_set_page(struct scatterlist *sg, struct page *page,
+			       unsigned int len, unsigned int offset)
+{
+	sg->page = page;
+	sg->offset = offset;
+	sg->length = len;
+}
+#endif
+
 /* Module parameters */
 static unsigned int param_buffersize = FLIUSB_BUFFERSIZE;
 module_param_named(buffersize, param_buffersize, uint, S_IRUGO);
@@ -300,28 +311,10 @@ static int fliusb_sg_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 		goto done;
 	}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION (2,6,24))
-	dev->usbsg.slist[0].page = dev->usbsg.userpg[0];
-	dev->usbsg.slist[0].offset = pgoffset;
-	dev->usbsg.slist[0].length = min(count, (size_t)(PAGE_SIZE - pgoffset));
-#else
 	sg_set_page(&dev->usbsg.slist[0], dev->usbsg.userpg[0], min(count, (size_t)(PAGE_SIZE - pgoffset)), pgoffset);
-#endif
 
 	if (numpg > 1) {
 		for (i = 1; i < numpg - 1; i++) {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24))
-			dev->usbsg.slist[i].page = dev->usbsg.userpg[i];
-			dev->usbsg.slist[i].offset = 0;
-			dev->usbsg.slist[i].length = PAGE_SIZE;
-		}
-
-		dev->usbsg.slist[i].page = dev->usbsg.userpg[i];
-		dev->usbsg.slist[i].offset = 0;
-		dev->usbsg.slist[i].length = ((size_t)userbuffer + count) & (PAGE_SIZE - 1);
-		if (dev->usbsg.slist[i].length == 0)
-			dev->usbsg.slist[i].length = PAGE_SIZE;
-#else
 			sg_set_page(&dev->usbsg.slist[i], dev->usbsg.userpg[i], PAGE_SIZE, 0);
 		}
 
@@ -330,7 +323,6 @@ static int fliusb_sg_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 		} else {
 			sg_set_page(&dev->usbsg.slist[i], dev->usbsg.userpg[i], ((size_t)userbuffer + count) & (PAGE_SIZE - 1), 0);
 		}
-#endif
 	}
 
 	if ((err = usb_sg_init(&dev->usbsg.sgreq, dev->usbdev, pipe, 0,
