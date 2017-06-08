@@ -679,79 +679,63 @@ static int fliusb_ioctl(struct inode *inode, struct file *file,
 	return -ENOTTY;		/* shouldn't get here */
 }
 
-static int fliusb_initdev(fliusb_t **dev, struct usb_interface *interface,
+static int fliusb_initdev(fliusb_t *dev, struct usb_interface *interface,
 			  const struct usb_device_id *id)
 {
-	fliusb_t *tmpdev;
-	int err;
 	char prodstr[64] = "unknown";
+	int err;
 
-	if ((tmpdev = kmalloc(sizeof(fliusb_t), GFP_KERNEL)) == NULL)
-		return -ENOMEM;
-
-	memset(tmpdev, 0, sizeof(*tmpdev));
-	kref_init(&tmpdev->kref);
-
-	tmpdev->usbdev = usb_get_dev(interface_to_usbdev(interface));
-	tmpdev->interface = interface;
-	tmpdev->timeout = param_timeout;
+	dev->usbdev = usb_get_dev(interface_to_usbdev(interface));
+	dev->interface = interface;
+	dev->timeout = param_timeout;
 
 	switch (id->idProduct) {
 	case FLIUSB_PRODID_MAXCAM:
 	case FLIUSB_PRODID_STEPPER:
 	case FLIUSB_PRODID_FOCUSER:
 	case FLIUSB_PRODID_FILTERWHEEL:
-		tmpdev->rdbulkpipe = usb_rcvbulkpipe(tmpdev->usbdev, FLIUSB_RDEPADDR);
-		tmpdev->wrbulkpipe = usb_sndbulkpipe(tmpdev->usbdev, FLIUSB_WREPADDR);
+		dev->rdbulkpipe = usb_rcvbulkpipe(dev->usbdev, FLIUSB_RDEPADDR);
+		dev->wrbulkpipe = usb_sndbulkpipe(dev->usbdev, FLIUSB_WREPADDR);
 		break;
 
 	case FLIUSB_PRODID_PROLINECAM:
-		tmpdev->rdbulkpipe = usb_rcvbulkpipe(tmpdev->usbdev, FLIUSB_PROLINE_RDEPADDR);
-		tmpdev->wrbulkpipe = usb_sndbulkpipe(tmpdev->usbdev, FLIUSB_PROLINE_WREPADDR);
+		dev->rdbulkpipe = usb_rcvbulkpipe(dev->usbdev, FLIUSB_PROLINE_RDEPADDR);
+		dev->wrbulkpipe = usb_sndbulkpipe(dev->usbdev, FLIUSB_PROLINE_WREPADDR);
 		break;
 
 	default:
 		FLIUSB_WARN("unsupported FLI USB device");
-		err = -EINVAL;
-		goto fail;
-		break;
+		return -EINVAL;
 	}
 
 	/* Check that the endpoints exist */
-	if (usb_maxpacket(tmpdev->usbdev, tmpdev->rdbulkpipe, 0) == 0) {
+	if (usb_maxpacket(dev->usbdev, dev->rdbulkpipe, 0) == 0) {
 		FLIUSB_ERR("invalid read USB bulk transfer endpoint address: 0x%02x",
-				usb_pipeendpoint(tmpdev->rdbulkpipe) | USB_DIR_IN);
-		err = -ENXIO;
-		goto fail;
+				usb_pipeendpoint(dev->rdbulkpipe) | USB_DIR_IN);
+		return -ENXIO;
 	}
 
-	if (usb_maxpacket(tmpdev->usbdev, tmpdev->wrbulkpipe, 1) == 0) {
+	if (usb_maxpacket(dev->usbdev, dev->wrbulkpipe, 1) == 0) {
 		FLIUSB_ERR("invalid write USB bulk transfer endpoint address: 0x%02x",
-				usb_pipeendpoint(tmpdev->wrbulkpipe) | USB_DIR_OUT);
-		err = -ENXIO;
-		goto fail;
+				usb_pipeendpoint(dev->wrbulkpipe) | USB_DIR_OUT);
+		return -ENXIO;
 	}
 
-	init_MUTEX(&tmpdev->buffsem);
-	if ((err = fliusb_allocbuffer(tmpdev, param_buffersize)))
-		goto fail;
+	init_MUTEX(&dev->buffsem);
+	if ((err = fliusb_allocbuffer(dev, param_buffersize)))
+		return err;
 
 #ifdef SGREAD
-	tmpdev->usbsg.maxpg = NUMSGPAGE;
-	init_timer(&tmpdev->usbsg.timer);
-	init_MUTEX(&tmpdev->usbsg.sem);
+	dev->usbsg.maxpg = NUMSGPAGE;
+	init_timer(&dev->usbsg.timer);
+	init_MUTEX(&dev->usbsg.sem);
 #endif /* SGREAD */
 
-	if ((err = usb_string(tmpdev->usbdev, tmpdev->usbdev->descriptor.iProduct, prodstr, sizeof(prodstr))) < 0)
+	if ((err = usb_string(dev->usbdev, dev->usbdev->descriptor.iProduct, prodstr, sizeof(prodstr))) < 0)
 		FLIUSB_WARN("usb_string() failed: %d", err);
 
 	FLIUSB_INFO("FLI USB device found: '%s'", prodstr);
-	*dev = tmpdev;
 	return 0;
-
-fail:
-	kref_put(&tmpdev->kref, fliusb_delete);
-	return err;
 }
 
 static struct file_operations fliusb_fops = {
@@ -782,8 +766,17 @@ static int fliusb_probe(struct usb_interface *interface,
 	fliusb_t *dev;
 	int err;
 
-	if ((err = fliusb_initdev(&dev, interface, id)))
+	/* allocate our internal device structure */
+	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
+	if (dev == NULL)
+		return -ENOMEM;
+
+	kref_init(&dev->kref);
+
+	if ((err = fliusb_initdev(dev, interface, id))) {
+		kref_put(&dev->kref, fliusb_delete);
 		return err;
+	}
 
 	/* save a pointer to the device structure in this interface */
 	usb_set_intfdata(interface, dev);
