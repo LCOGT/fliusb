@@ -545,128 +545,137 @@ static int fliusb_ioctl(struct inode *inode, struct file *file,
 #endif
 {
 	struct fliusb_dev *dev = file->private_data;
-	union {
-		u_int8_t uint8;
-		unsigned int uint;
-		fliusb_bulktransfer_t bulkxfer;
-		fliusb_string_descriptor_t strdesc;
-	} tmp;
-	unsigned int tmppipe;
-	int err;
 
 	FLIUSB_DBG("cmd: 0x%08x; arg: 0x%08lx", cmd, arg);
 
 	if (_IOC_TYPE(cmd) != FLIUSB_IOC_TYPE || _IOC_NR(cmd) > FLIUSB_IOC_MAX)
 		return -ENOTTY;
 
-	/* Check that arg can be read from */
-	if ((_IOC_DIR(cmd) & _IOC_WRITE) && !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd)))
-		return -EFAULT;
-
-	/* Check that arg can be written to */
-	if ((_IOC_DIR(cmd) & _IOC_READ) && !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd)))
-		return -EFAULT;
-
 	switch (cmd) {
-#define FLIUSB_IOC_GETCMD(cmd, val, type)			\
-	case cmd:						\
-		return __put_user(val, (type __user *)arg);	\
-		break;
+	case FLIUSB_GETBUFFERSIZE:
+		return put_user(dev->buffersize, (unsigned int __user *)arg);
 
-	FLIUSB_IOC_GETCMD(FLIUSB_GETBUFFERSIZE, dev->buffersize, unsigned int);
-	FLIUSB_IOC_GETCMD(FLIUSB_GETTIMEOUT, dev->timeout, unsigned int);
-	FLIUSB_IOC_GETCMD(FLIUSB_GETRDEPADDR,
-			(u_int8_t)(usb_pipeendpoint(dev->rdbulkpipe) | USB_DIR_IN), u_int8_t);
-	FLIUSB_IOC_GETCMD(FLIUSB_GETWREPADDR,
-			(u_int8_t)(usb_pipeendpoint(dev->wrbulkpipe) | USB_DIR_OUT), u_int8_t);
-#undef FLIUSB_IOC_GETCMD
+	case FLIUSB_GETTIMEOUT:
+		return put_user(dev->timeout, (unsigned int __user *)arg);
 
-	case FLIUSB_SETRDEPADDR:
-		if (__get_user(tmp.uint8, (u_int8_t __user *)arg))
+	case FLIUSB_GETRDEPADDR: {
+		u8 tmp = usb_pipeendpoint(dev->rdbulkpipe) | USB_DIR_IN;
+		return put_user(tmp, (u8 __user *)arg);
+	}
+
+	case FLIUSB_GETWREPADDR: {
+		u8 tmp = usb_pipeendpoint(dev->wrbulkpipe) | USB_DIR_OUT;
+		return put_user(tmp, (u8 __user *)arg);
+	}
+
+	case FLIUSB_SETRDEPADDR: {
+		unsigned int pipe;
+		u8 tmp;
+
+		if (get_user(tmp, (u8 __user *)arg))
 			return -EFAULT;
 
-		tmppipe = usb_rcvbulkpipe(dev->usbdev, tmp.uint8);
-
-		if (usb_maxpacket(dev->usbdev, tmppipe, 0) == 0) {
-			FLIUSB_ERR("invalid read USB bulk transfer endpoint address: 0x%02x", tmp.uint8);
+		pipe = usb_rcvbulkpipe(dev->usbdev, tmp);
+		if (usb_maxpacket(dev->usbdev, pipe, 0) == 0) {
+			FLIUSB_ERR("invalid read USB bulk transfer endpoint address: 0x%02x", tmp);
 			return -EINVAL;
 		}
 
-		dev->rdbulkpipe = tmppipe;
+		dev->rdbulkpipe = pipe;
 		return 0;
-		break;
+	}
 
-	case FLIUSB_SETWREPADDR:
-		if (__get_user(tmp.uint8, (u_int8_t __user *)arg))
+	case FLIUSB_SETWREPADDR: {
+		unsigned int pipe;
+		u8 tmp;
+
+		if (get_user(tmp, (u8 __user *)arg))
 			return -EFAULT;
 
-		tmppipe = usb_sndbulkpipe(dev->usbdev, tmp.uint8);
+		pipe = usb_sndbulkpipe(dev->usbdev, tmp);
 
-		if (usb_maxpacket(dev->usbdev, tmppipe, 1) == 0) {
-			FLIUSB_ERR("invalid write USB bulk transfer endpoint address: 0x%02x", tmp.uint8);
+		if (usb_maxpacket(dev->usbdev, pipe, 1) == 0) {
+			FLIUSB_ERR("invalid write USB bulk transfer endpoint address: 0x%02x", tmp);
 			return -EINVAL;
 		}
 
-		dev->wrbulkpipe = tmppipe;
+		dev->wrbulkpipe = pipe;
 		return 0;
-		break;
+	}
 
-	case FLIUSB_SETBUFFERSIZE:
-		if (__get_user(tmp.uint, (unsigned int __user *)arg))
+	case FLIUSB_SETBUFFERSIZE: {
+		unsigned int tmp;
+
+		if (get_user(tmp, (unsigned int __user *)arg))
 			return -EFAULT;
 
-		return fliusb_allocbuffer(dev, tmp.uint);
-		break;
+		return fliusb_allocbuffer(dev, tmp);
+	}
 
-	case FLIUSB_SETTIMEOUT:
-		if (__get_user(tmp.uint, (unsigned int __user *)arg))
+	case FLIUSB_SETTIMEOUT: {
+		unsigned int tmp;
+
+		if (get_user(tmp, (unsigned int __user *)arg))
 			return -EFAULT;
 
-		if (tmp.uint == 0) {
-			FLIUSB_ERR("invalid timeout: %u", tmp.uint);
+		if (tmp == 0) {
+			FLIUSB_ERR("invalid timeout: %u", tmp);
 			return -EINVAL;
 		}
 
-		dev->timeout = tmp.uint;
+		dev->timeout = tmp;
 		return 0;
-		break;
+	}
 
-	case FLIUSB_BULKREAD:
-		if (__copy_from_user(&tmp.bulkxfer, (fliusb_bulktransfer_t __user *)arg, sizeof(fliusb_bulktransfer_t)))
+	case FLIUSB_BULKREAD: {
+		fliusb_bulktransfer_t xfer;
+		unsigned int pipe;
+
+		if (copy_from_user(&xfer, (fliusb_bulktransfer_t __user *)arg, sizeof(xfer)))
 			return -EFAULT;
 
-		tmppipe = usb_rcvbulkpipe(dev->usbdev, tmp.bulkxfer.ep);
-		return fliusb_bulk_read(dev, tmppipe, tmp.bulkxfer.buf, tmp.bulkxfer.count, tmp.bulkxfer.timeout);
+		pipe = usb_rcvbulkpipe(dev->usbdev, xfer.ep);
+		return fliusb_bulk_read(dev, pipe, xfer.buf, xfer.count, xfer.timeout);
+	}
 
-	case FLIUSB_BULKWRITE:
-		if (__copy_from_user(&tmp.bulkxfer, (fliusb_bulktransfer_t __user *)arg, sizeof(fliusb_bulktransfer_t)))
+	case FLIUSB_BULKWRITE: {
+		fliusb_bulktransfer_t xfer;
+		unsigned int pipe;
+
+		if (copy_from_user(&xfer, (fliusb_bulktransfer_t __user *)arg, sizeof(xfer)))
 			return -EFAULT;
 
-		tmppipe = usb_sndbulkpipe(dev->usbdev, tmp.bulkxfer.ep);
-		return fliusb_bulk_write(dev, tmppipe, tmp.bulkxfer.buf, tmp.bulkxfer.count, tmp.bulkxfer.timeout);
+		pipe = usb_sndbulkpipe(dev->usbdev, xfer.ep);
+		return fliusb_bulk_write(dev, pipe, xfer.buf, xfer.count, xfer.timeout);
+	}
 
-	case FLIUSB_GET_DEVICE_DESCRIPTOR:
-		if (__copy_to_user((void *)arg, &dev->usbdev->descriptor, sizeof(struct usb_device_descriptor)))
+	case FLIUSB_GET_DEVICE_DESCRIPTOR: {
+		struct usb_device_descriptor *desc = &dev->usbdev->descriptor;
+
+		if (copy_to_user((void *)arg, desc, sizeof(*desc)))
 			return -EFAULT;
 
 		return 0;
-		break;
+	}
 
-	case FLIUSB_GET_STRING_DESCRIPTOR:
-		if (__copy_from_user(&tmp.strdesc, (fliusb_string_descriptor_t __user *)arg, sizeof(fliusb_string_descriptor_t)))
+	case FLIUSB_GET_STRING_DESCRIPTOR: {
+		fliusb_string_descriptor_t desc;
+		int err;
+
+		if (copy_from_user(&desc, (fliusb_string_descriptor_t __user *)arg, sizeof(desc)))
 			return -EFAULT;
 
-		memset(tmp.strdesc.buf, 0, sizeof(tmp.strdesc.buf));
+		memset(desc.buf, 0, sizeof(desc.buf));
 
-		if ((err = usb_string(dev->usbdev, tmp.strdesc.index, tmp.strdesc.buf, sizeof(tmp.strdesc.buf))) < 0)
+		err = usb_string(dev->usbdev, desc.index, desc.buf, sizeof(desc.buf));
+		if (err < 0)
 			FLIUSB_WARN("usb_string() failed: %d", err);
 
-		if (__copy_to_user((void *)arg, &tmp.strdesc, sizeof(fliusb_string_descriptor_t))) {
+		if (copy_to_user((void *)arg, &desc, sizeof(desc)))
 			return -EFAULT;
-		}
 
 		return 0;
-		break;
+	}
 
 	default:
 		FLIUSB_ERR("invalid ioctl request: %d", cmd);
