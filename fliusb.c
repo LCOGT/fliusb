@@ -51,6 +51,7 @@
 #include <linux/fs.h>
 #include <linux/fcntl.h>
 #include <linux/slab.h>
+#include <linux/mutex.h>
 #include <asm/uaccess.h>
 
 #include <linux/mm.h>
@@ -89,7 +90,7 @@ struct fliusb_sg {
 	unsigned int maxpg;
 	struct usb_sg_request sgreq;
 	struct timer_list timer;
-	struct semaphore sem;
+	struct mutex mutex;
 };
 
 struct fliusb_dev {
@@ -100,7 +101,7 @@ struct fliusb_dev {
 	/* Kernel buffer used for bulk reads */
 	void *buffer;
 	unsigned int buffersize;
-	struct semaphore buffsem;
+	struct mutex buffermutex;
 
 	struct fliusb_sg usbsg;
 
@@ -129,10 +130,6 @@ struct fliusb_dev {
 			FLIUSB_INFO(fmt, ##args);	\
 		}					\
 	} while (0)
-#endif
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) && !defined(init_MUTEX)
-	#define init_MUTEX(sem) sema_init(sem, 1)
 #endif
 
 /* Module parameters */
@@ -167,7 +164,7 @@ static int fliusb_allocbuffer(struct fliusb_dev *dev, unsigned int size)
 	if (size == 0)
 		return -EINVAL;
 
-	if (down_interruptible(&dev->buffsem))
+	if (mutex_lock_interruptible(&dev->buffermutex))
 		return -ERESTARTSYS;
 
 	if ((tmp = kmalloc(size, GFP_KERNEL)) == NULL) {
@@ -183,7 +180,7 @@ static int fliusb_allocbuffer(struct fliusb_dev *dev, unsigned int size)
 	dev->buffersize = size;
 
 done:
-	up(&dev->buffsem);
+	mutex_unlock(&dev->buffermutex);
 	return err;
 }
 
@@ -239,7 +236,7 @@ static int fliusb_simple_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 	if (!access_ok(VERIFY_WRITE, userbuffer, count))
 		return -EFAULT;
 
-	if (down_interruptible(&dev->buffsem))
+	if (mutex_lock_interruptible(&dev->buffermutex))
 		return -ERESTARTSYS;
 
 	/* a simple blocking bulk read */
@@ -252,7 +249,7 @@ static int fliusb_simple_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 		cnt = -EFAULT;
 
 done:
-	up(&dev->buffsem);
+	mutex_unlock(&dev->buffermutex);
 	return cnt;
 }
 
@@ -289,7 +286,7 @@ static int fliusb_sg_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 		count = PAGE_SIZE - pgoffset + PAGE_SIZE * (dev->usbsg.maxpg - 1);
 	}
 
-	if (down_interruptible(&dev->usbsg.sem))
+	if (mutex_lock_interruptible(&dev->usbsg.mutex))
 		return -ERESTARTSYS;
 
 	down_read(&current->mm->mmap_sem);
@@ -361,7 +358,7 @@ static int fliusb_sg_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 	err = dev->usbsg.sgreq.bytes;
 
 done:
-	up(&dev->usbsg.sem);
+	mutex_unlock(&dev->usbsg.mutex);
 
 	for (i = 0; i < numpg; i++) {
 		if (!PageReserved(dev->usbsg.userpg[i]))
@@ -398,7 +395,7 @@ static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
 	if (count > dev->buffersize)
 		count = dev->buffersize;
 
-	if (down_interruptible(&dev->buffsem))
+	if (mutex_lock_interruptible(&dev->buffermutex))
 		return -ERESTARTSYS;
 
 	if (copy_from_user(dev->buffer, userbuffer, count)) {
@@ -415,7 +412,7 @@ static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
 	}
 
 done:
-	up(&dev->buffsem);
+	mutex_unlock(&dev->buffermutex);
 	return cnt;
 }
 
@@ -638,13 +635,13 @@ static int fliusb_initdev(struct fliusb_dev *dev, struct usb_interface *interfac
 		return -ENXIO;
 	}
 
-	init_MUTEX(&dev->buffsem);
+	mutex_init(&dev->buffermutex);
 	if ((err = fliusb_allocbuffer(dev, param_buffersize)))
 		return err;
 
 	dev->usbsg.maxpg = NUMSGPAGE;
 	init_timer(&dev->usbsg.timer);
-	init_MUTEX(&dev->usbsg.sem);
+	mutex_init(&dev->usbsg.mutex);
 
 	if ((err = usb_string(dev->usbdev, dev->usbdev->descriptor.iProduct, prodstr, sizeof(prodstr))) < 0)
 		FLIUSB_WARN("usb_string() failed: %d", err);
