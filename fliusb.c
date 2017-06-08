@@ -53,12 +53,10 @@
 #include <linux/slab.h>
 #include <asm/uaccess.h>
 
-#ifdef SGREAD
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/scatterlist.h>
 #include <asm/scatterlist.h>
-#endif
 
 #include "fliusb_ioctl.h"
 
@@ -74,20 +72,14 @@
 #define FLIUSB_PRODID_PROLINECAM	0x000a
 
 /* Default values (module parameters override these) */
-#define FLIUSB_TIMEOUT 5000	/* milliseconds */
-#ifndef SGREAD
-	#define FLIUSB_BUFFERSIZE 65536
-#else
-	#define FLIUSB_BUFFERSIZE PAGE_SIZE
-#endif /* SGREAD */
+#define FLIUSB_TIMEOUT		5000	/* milliseconds */
+#define FLIUSB_BUFFERSIZE	PAGE_SIZE
 
 /* Model-specific parameters */
 #define FLIUSB_RDEPADDR 0x82
 #define FLIUSB_WREPADDR 0x02
 #define FLIUSB_PROLINE_RDEPADDR 0x81
 #define FLIUSB_PROLINE_WREPADDR 0x01
-
-#ifdef SGREAD
 
 #define NUMSGPAGE 32
 
@@ -100,8 +92,6 @@ struct fliusb_sg {
 	struct semaphore sem;
 };
 
-#endif /* SGREAD */
-
 struct fliusb_dev {
 	/* Bulk transfer pipes used for read()/write() */
 	unsigned int rdbulkpipe;
@@ -112,9 +102,7 @@ struct fliusb_dev {
 	unsigned int buffersize;
 	struct semaphore buffsem;
 
-#ifdef SGREAD
 	struct fliusb_sg usbsg;
-#endif
 
 	unsigned int timeout;	/* timeout for bulk transfers in milliseconds */
 
@@ -268,8 +256,6 @@ done:
 	return cnt;
 }
 
-#ifdef SGREAD
-
 static void fliusb_sg_bulk_read_timeout(unsigned long data)
 {
 	struct fliusb_dev *dev = (struct fliusb_dev *)data;
@@ -387,8 +373,6 @@ done:
 	return err;
 }
 
-#endif /* SGREAD */
-
 static int fliusb_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 			    char __user *userbuffer, size_t count,
 			    unsigned int timeout)
@@ -396,11 +380,9 @@ static int fliusb_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 	FLIUSB_DBG("pipe: 0x%08x; userbuffer: %p; count: %zu; timeout: %u",
 			pipe, userbuffer, count, timeout);
 
-#ifdef SGREAD
 	if (count > dev->buffersize)
 		return fliusb_sg_bulk_read(dev, pipe, userbuffer, count, timeout);
 	else
-#endif /* SGREAD */
 		return fliusb_simple_bulk_read(dev, pipe, userbuffer, count, timeout);
 }
 
@@ -660,11 +642,9 @@ static int fliusb_initdev(struct fliusb_dev *dev, struct usb_interface *interfac
 	if ((err = fliusb_allocbuffer(dev, param_buffersize)))
 		return err;
 
-#ifdef SGREAD
 	dev->usbsg.maxpg = NUMSGPAGE;
 	init_timer(&dev->usbsg.timer);
 	init_MUTEX(&dev->usbsg.sem);
-#endif /* SGREAD */
 
 	if ((err = usb_string(dev->usbdev, dev->usbdev->descriptor.iProduct, prodstr, sizeof(prodstr))) < 0)
 		FLIUSB_WARN("usb_string() failed: %d", err);

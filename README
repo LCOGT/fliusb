@@ -16,23 +16,13 @@ Compile Options
 ===============
 
 Compile-time options are controlled by defining the following
-preprocessor macros: DEBUG and SGREAD.  Each option is
-briefly described below.
+preprocessor macros.  Each option is briefly described below.
 
 DEBUG		This option makes the driver more verbose and causes
 		it to print a basic description of what it's doing as
 		various operations are performed.  This has a negative
 		impact on performance but might be useful for
 		debugging purposes.
-
-SGREAD		This allows scatter-gather bulk read transfers.  Bulk
-		reads whose size exceeds the size of the driver buffer
-		(see the buffersize module parameter below) are done
-		with a scatter-gather transfer directly into the
-		provided user-space buffer.  The user-space buffer
-		must be aligned to a multiple of the endpoint's
-		maximum packet size, for example by having the
-		application pass a page-aligned buffer.
 
 Module Parameters
 =================

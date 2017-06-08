@@ -6,7 +6,6 @@ PWD		:= $(shell pwd)
 EXTRA_CFLAGS		+= -O2 -Wall
 
 #EXTRA_CFLAGS		+= -DDEBUG	# enable debug messages
-EXTRA_CFLAGS		+= -DSGREAD	# enable scatter-gather reads
 
 all: module cleanup
 
