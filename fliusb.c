@@ -136,7 +136,11 @@ struct fliusb_dev {
 #ifdef DEBUG
 	#define FLIUSB_DBG(fmt, args...) FLIUSB_INFO(fmt , ##args)
 #else
-	#define FLIUSB_DBG(fmt, args...)  do {} while (0)
+	#define FLIUSB_DBG(fmt, args...)  do {		\
+		if (0) {				\
+			FLIUSB_INFO(fmt, ##args);	\
+		}					\
+	} while (0)
 #endif
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) && !defined(init_MUTEX)
@@ -389,7 +393,7 @@ static int fliusb_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 			    char __user *userbuffer, size_t count,
 			    unsigned int timeout)
 {
-	FLIUSB_DBG("pipe: 0x%08x; userbuffer: %p; count: %u; timeout: %u",
+	FLIUSB_DBG("pipe: 0x%08x; userbuffer: %p; count: %zu; timeout: %u",
 			pipe, userbuffer, count, timeout);
 
 #ifdef SGREAD
@@ -408,7 +412,7 @@ static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
 {
 	int err, cnt;
 
-	FLIUSB_DBG("pipe: 0x%08x; userbuffer: %p; count: %u; timeout: %u",
+	FLIUSB_DBG("pipe: 0x%08x; userbuffer: %p; count: %zu; timeout: %u",
 			pipe, userbuffer, count, timeout);
 
 	if (count > dev->buffersize)
@@ -550,7 +554,7 @@ static int fliusb_ioctl(struct inode *inode, struct file *file,
 	unsigned int tmppipe;
 	int err;
 
-	FLIUSB_DBG("cmd: %p; arg: %p", (void *)cmd, (void *)arg);
+	FLIUSB_DBG("cmd: 0x%08x; arg: 0x%08lx", cmd, arg);
 
 	if (_IOC_TYPE(cmd) != FLIUSB_IOC_TYPE || _IOC_NR(cmd) > FLIUSB_IOC_MAX)
 		return -ENOTTY;
