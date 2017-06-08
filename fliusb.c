@@ -91,18 +91,18 @@
 
 #define NUMSGPAGE 32
 
-typedef struct {
+struct fliusb_sg {
 	struct page *userpg[NUMSGPAGE];
 	struct scatterlist slist[NUMSGPAGE];
 	unsigned int maxpg;
 	struct usb_sg_request sgreq;
 	struct timer_list timer;
 	struct semaphore sem;
-} fliusbsg_t;
+};
 
 #endif /* SGREAD */
 
-typedef struct {
+struct fliusb_dev {
 	/* Bulk transfer pipes used for read()/write() */
 	unsigned int rdbulkpipe;
 	unsigned int wrbulkpipe;
@@ -113,7 +113,7 @@ typedef struct {
 	struct semaphore buffsem;
 
 #ifdef SGREAD
-	fliusbsg_t usbsg;
+	struct fliusb_sg usbsg;
 #endif
 
 	unsigned int timeout;	/* timeout for bulk transfers in milliseconds */
@@ -122,7 +122,7 @@ typedef struct {
 	struct usb_interface *interface;
 
 	struct kref kref;
-} fliusb_t;
+};
 
 #define FLIUSB_ERR(fmt, args...) \
 	printk(KERN_ERR "%s[%d]: " fmt "\n", __FUNCTION__, __LINE__ , ##args)
@@ -157,9 +157,8 @@ static struct usb_driver fliusb_driver;
 
 static void fliusb_delete(struct kref *kref)
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev = container_of(kref, struct fliusb_dev, kref);
 
-	dev = container_of(kref, fliusb_t, kref);
 	usb_put_dev(dev->usbdev);
 
 	if (dev->buffer)
@@ -168,7 +167,7 @@ static void fliusb_delete(struct kref *kref)
 	kfree(dev);
 }
 
-static int fliusb_allocbuffer(fliusb_t *dev, unsigned int size)
+static int fliusb_allocbuffer(struct fliusb_dev *dev, unsigned int size)
 {
 	void *tmp;
 	int err = 0;
@@ -198,7 +197,7 @@ done:
 
 static int fliusb_open(struct inode *inode, struct file *file)
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev;
 	struct usb_interface *interface;
 	int minor = iminor(inode);
 
@@ -223,9 +222,9 @@ static int fliusb_open(struct inode *inode, struct file *file)
 
 static int fliusb_release(struct inode *inode, struct file *file)
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev = file->private_data;
 
-	if ((dev = file->private_data) == NULL) {
+	if (dev == NULL) {
 		FLIUSB_ERR("no device data for minor number %d", iminor(inode));
 		return -ENODEV;
 	}
@@ -236,7 +235,7 @@ static int fliusb_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int fliusb_simple_bulk_read(fliusb_t *dev, unsigned int pipe,
+static int fliusb_simple_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 				   char __user *userbuffer, size_t count,
 				   unsigned int timeout)
 {
@@ -269,13 +268,13 @@ done:
 
 static void fliusb_sg_bulk_read_timeout(unsigned long data)
 {
-	fliusb_t *dev = (fliusb_t *)data;
+	struct fliusb_dev *dev = (struct fliusb_dev *)data;
 
 	FLIUSB_ERR("bulk read timed out");
 	usb_sg_cancel(&dev->usbsg.sgreq);
 }
 
-static int fliusb_sg_bulk_read(fliusb_t *dev, unsigned int pipe,
+static int fliusb_sg_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 			       char __user *userbuffer, size_t count,
 			       unsigned int timeout)
 {
@@ -386,7 +385,7 @@ done:
 
 #endif /* SGREAD */
 
-static int fliusb_bulk_read(fliusb_t *dev, unsigned int pipe,
+static int fliusb_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 			    char __user *userbuffer, size_t count,
 			    unsigned int timeout)
 {
@@ -403,7 +402,7 @@ static int fliusb_bulk_read(fliusb_t *dev, unsigned int pipe,
 
 #ifndef ASYNCWRITE
 
-static int fliusb_bulk_write(fliusb_t *dev, unsigned int pipe,
+static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
 			     const char __user *userbuffer, size_t count,
 			     unsigned int timeout)
 {
@@ -456,7 +455,7 @@ static void fliusb_bulk_write_callback(struct urb *urb, struct pt_regs *regs)
 	urb->transfer_buffer, urb->transfer_dma);
 }
 
-static int fliusb_bulk_write(fliusb_t *dev, unsigned int pipe,
+static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
 			     const char __user *userbuffer, size_t count,
 			     unsigned int timeout)
 {
@@ -508,15 +507,13 @@ error:
 static ssize_t fliusb_read(struct file *file, char __user *userbuffer,
 			   size_t count, loff_t *ppos)
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev = file->private_data;
 
 	if (count == 0)
 		return 0;
 
 	if (*ppos)
 		return -ESPIPE;
-
-	dev = (fliusb_t *)file->private_data;
 
 	return fliusb_bulk_read(dev, dev->rdbulkpipe, userbuffer, count, dev->timeout);
 }
@@ -524,15 +521,13 @@ static ssize_t fliusb_read(struct file *file, char __user *userbuffer,
 static ssize_t fliusb_write(struct file *file, const char __user *userbuffer,
 			    size_t count, loff_t *ppos)
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev = file->private_data;
 
 	if (count == 0)
 		return 0;
 
 	if (*ppos)
 		return -ESPIPE;
-
-	dev = (fliusb_t *)file->private_data;
 
 	return fliusb_bulk_write(dev, dev->wrbulkpipe, userbuffer, count, dev->timeout);
 }
@@ -545,7 +540,7 @@ static int fliusb_ioctl(struct inode *inode, struct file *file,
 			unsigned int cmd, unsigned long arg)
 #endif
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev = file->private_data;
 	union {
 		u_int8_t uint8;
 		unsigned int uint;
@@ -567,8 +562,6 @@ static int fliusb_ioctl(struct inode *inode, struct file *file,
 	/* Check that arg can be written to */
 	if ((_IOC_DIR(cmd) & _IOC_READ) && !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd)))
 		return -EFAULT;
-
-	dev = (fliusb_t *)file->private_data;
 
 	switch (cmd) {
 #define FLIUSB_IOC_GETCMD(cmd, val, type)			\
@@ -679,7 +672,7 @@ static int fliusb_ioctl(struct inode *inode, struct file *file,
 	return -ENOTTY;		/* shouldn't get here */
 }
 
-static int fliusb_initdev(fliusb_t *dev, struct usb_interface *interface,
+static int fliusb_initdev(struct fliusb_dev *dev, struct usb_interface *interface,
 			  const struct usb_device_id *id)
 {
 	char prodstr[64] = "unknown";
@@ -763,7 +756,7 @@ static struct usb_class_driver fliusb_class = {
 static int fliusb_probe(struct usb_interface *interface,
 			const struct usb_device_id *id)
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev;
 	int err;
 
 	/* allocate our internal device structure */
@@ -799,9 +792,8 @@ static int fliusb_probe(struct usb_interface *interface,
 
 static void fliusb_disconnect(struct usb_interface *interface)
 {
-	fliusb_t *dev;
+	struct fliusb_dev *dev = usb_get_intfdata(interface);
 
-	dev = usb_get_intfdata(interface);
 	usb_set_intfdata(interface, NULL);
 
 	/* give back the minor number we were using */
