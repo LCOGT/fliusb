@@ -404,8 +404,6 @@ static int fliusb_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 		return fliusb_simple_bulk_read(dev, pipe, userbuffer, count, timeout);
 }
 
-#ifndef ASYNCWRITE
-
 static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
 			     const char __user *userbuffer, size_t count,
 			     unsigned int timeout)
@@ -438,75 +436,6 @@ done:
 	up(&dev->buffsem);
 	return cnt;
 }
-
-#else
-
-static void fliusb_bulk_write_callback(struct urb *urb, struct pt_regs *regs)
-{
-	switch (urb->status) {
-	case 0:
-	case -ECONNRESET:
-	case -ENOENT:
-	case -ESHUTDOWN:
-		break;			/* These aren't noteworthy */
-	default:
-		FLIUSB_WARN("bulk write error %d; transfered %d bytes",
-		urb->status, urb->actual_length);
-		break;
-	}
-
-	usb_buffer_free(urb->dev, urb->transfer_buffer_length,
-	urb->transfer_buffer, urb->transfer_dma);
-}
-
-static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
-			     const char __user *userbuffer, size_t count,
-			     unsigned int timeout)
-{
-	int err;
-	struct urb *urb = NULL;
-	char *buffer = NULL;
-
-	FLIUSB_DBG("pipe: 0x%08x; userbuffer: %p; count: %u; timeout: %u",
-			pipe, userbuffer, count, timeout);
-
-	if (!access_ok(VERIFY_READ, userbuffer, count))
-		return -EFAULT;
-
-	if ((urb = usb_alloc_urb(0, GFP_KERNEL)) == NULL)
-		return -ENOMEM;
-
-	if ((buffer = usb_buffer_alloc(dev->usbdev, count, GFP_KERNEL, &urb->transfer_dma)) == NULL) {
-		err = -ENOMEM;
-		goto error;
-	}
-
-	if (__copy_from_user(buffer, userbuffer, count)) {
-		err = -EFAULT;
-		goto error;
-	}
-
-	usb_fill_bulk_urb(urb, dev->usbdev, pipe, buffer, count, fliusb_bulk_write_callback, dev);
-	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
-
-	if ((err = usb_submit_urb(urb, GFP_KERNEL)))
-		goto error;
-
-	usb_free_urb(urb);
-
-	return count;
-
-error:
-	if (buffer)
-		usb_buffer_free(dev->usbdev, count, buffer, urb->transfer_dma);
-
-	if (urb)
-		usb_free_urb(urb);
-
-	return err;
-}
-
-#endif /* ASYNCWRITE */
 
 static ssize_t fliusb_read(struct file *file, char __user *userbuffer,
 			   size_t count, loff_t *ppos)

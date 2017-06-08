@@ -16,7 +16,7 @@ Compile Options
 ===============
 
 Compile-time options are controlled by defining the following
-preprocessor macros: DEBUG, ASYNCWRITE, and SGREAD.  Each option is
+preprocessor macros: DEBUG and SGREAD.  Each option is
 briefly described below.
 
 DEBUG		This option makes the driver more verbose and causes
@@ -24,14 +24,6 @@ DEBUG		This option makes the driver more verbose and causes
 		various operations are performed.  This has a negative
 		impact on performance but might be useful for
 		debugging purposes.
-
-ASYNCWRITE	This enables asynchronous bulk write transfers.  All
-		bulk writes will return before any data is actually
-		transfered to the FLI USB device.  This makes the
-		application unaware of any errors that occur during
-		the transfer, although they are logged by the driver.
-		Applications will only detect problems with a
-		subsequent bulk read attempt.
 
 SGREAD		This allows scatter-gather bulk read transfers.  Bulk
 		reads whose size exceeds the size of the driver buffer
