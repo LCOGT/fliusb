@@ -63,10 +63,6 @@
 #include "fliusb.h"
 #include "fliusb_ioctl.h"
 
-MODULE_AUTHOR("Finger Lakes Instrumentation, L.L.C. <support@flicamera.com>");
-MODULE_LICENSE("Dual BSD/GPL");
-MODULE_VERSION("1.3");
-
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) && !defined(init_MUTEX)
 	#define init_MUTEX(sem) sema_init(sem, 1)
 #endif
@@ -94,71 +90,8 @@ FLIUSB_MOD_PARAMETERS;
 
 #undef FLIUSB_MOD_PARAM
 
-/* Devices supported by this driver */
-static struct usb_device_id fliusb_table [] = {
-
-#define FLIUSB_PROD(name, prodid) {USB_DEVICE(FLIUSB_VENDORID, prodid)},
-
-	FLIUSB_PRODUCTS
-
-#undef FLIUSB_PROD
-
-	{},				/* Terminating entry */
-};
-
-MODULE_DEVICE_TABLE(usb, fliusb_table);
-
-/* Forward declarations of file operation functions */
-static int fliusb_open(struct inode *inode, struct file *file);
-static int fliusb_release(struct inode *inode, struct file *file);
-static ssize_t fliusb_read(struct file *file, char __user *buffer,
-			   size_t count, loff_t *ppos);
-static ssize_t fliusb_write(struct file *file, const char __user *user_buffer,
-			    size_t count, loff_t *ppos);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
-static long fliusb_ioctl(struct file *file,
-			unsigned int cmd, unsigned long arg);
-#else
-static int fliusb_ioctl(struct inode *inode, struct file *file,
-			unsigned int cmd, unsigned long arg);
-#endif
-
-static struct file_operations fliusb_fops = {
-	.owner		= THIS_MODULE,
-	.read		= fliusb_read,
-	.write		= fliusb_write,
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
-	.unlocked_ioctl	= fliusb_ioctl,
-#else
-	.ioctl		= fliusb_ioctl,
-#endif
-	.open		= fliusb_open,
-	.release	= fliusb_release,
-};
-
-static struct usb_class_driver fliusb_class = {
-	.name		= "usb/" FLIUSB_NAME "%d",
-	.fops		= &fliusb_fops,
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14))
-	.mode		= S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP,
-#endif
-	.minor_base	= FLIUSB_MINOR_BASE,
-};
-
-/* Forward declarations of USB driver functions */
-static int fliusb_probe(struct usb_interface *interface,
-			const struct usb_device_id *id);
-static void fliusb_disconnect(struct usb_interface *interface);
-
-static struct usb_driver fliusb_driver = {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14))
-	.owner		= THIS_MODULE,
-#endif
-	.name		= FLIUSB_NAME,
-	.probe		= fliusb_probe,
-	.disconnect	= fliusb_disconnect,
-	.id_table	= fliusb_table,
-};
+/* Forward declarations */
+static struct usb_driver fliusb_driver;
 
 static void fliusb_delete(struct kref *kref)
 {
@@ -776,6 +709,28 @@ fail:
 	return err;
 }
 
+static struct file_operations fliusb_fops = {
+	.owner		= THIS_MODULE,
+	.read		= fliusb_read,
+	.write		= fliusb_write,
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
+	.unlocked_ioctl	= fliusb_ioctl,
+#else
+	.ioctl		= fliusb_ioctl,
+#endif
+	.open		= fliusb_open,
+	.release	= fliusb_release,
+};
+
+static struct usb_class_driver fliusb_class = {
+	.name		= "usb/" FLIUSB_NAME "%d",
+	.fops		= &fliusb_fops,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14))
+	.mode		= S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP,
+#endif
+	.minor_base	= FLIUSB_MINOR_BASE,
+};
+
 static int fliusb_probe(struct usb_interface *interface,
 			const struct usb_device_id *id)
 {
@@ -820,6 +775,28 @@ static void fliusb_disconnect(struct usb_interface *interface)
 	FLIUSB_INFO("FLI USB device disconnected");
 }
 
+/* Devices supported by this driver */
+static struct usb_device_id fliusb_table [] = {
+
+#define FLIUSB_PROD(name, prodid) {USB_DEVICE(FLIUSB_VENDORID, prodid)},
+	FLIUSB_PRODUCTS
+#undef FLIUSB_PROD
+
+	{},				/* Terminating entry */
+};
+
+MODULE_DEVICE_TABLE(usb, fliusb_table);
+
+static struct usb_driver fliusb_driver = {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,14))
+	.owner		= THIS_MODULE,
+#endif
+	.name		= FLIUSB_NAME,
+	.probe		= fliusb_probe,
+	.disconnect	= fliusb_disconnect,
+	.id_table	= fliusb_table,
+};
+
 static int __init fliusb_init(void)
 {
 	int err;
@@ -841,3 +818,7 @@ static void __exit fliusb_exit(void)
 
 module_init(fliusb_init);
 module_exit(fliusb_exit);
+
+MODULE_AUTHOR("Finger Lakes Instrumentation, L.L.C. <support@flicamera.com>");
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_VERSION("1.3");
