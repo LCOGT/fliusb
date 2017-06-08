@@ -63,7 +63,7 @@ enum {
 
 #define FLIUSB_PROD(name, prodid) name ## _PRODID = prodid,
 
-  FLIUSB_PRODUCTS
+	FLIUSB_PRODUCTS
 
 #undef FLIUSB_PROD
 
@@ -72,9 +72,9 @@ enum {
 /* Default values (module parameters override these) */
 #define FLIUSB_TIMEOUT 5000	/* milliseconds */
 #ifndef SGREAD
-  #define FLIUSB_BUFFERSIZE 65536
+	#define FLIUSB_BUFFERSIZE 65536
 #else
-  #define FLIUSB_BUFFERSIZE PAGE_SIZE
+	#define FLIUSB_BUFFERSIZE PAGE_SIZE
 #endif /* SGREAD */
 
 /* Model-specific parameters */
@@ -88,51 +88,51 @@ enum {
 #define NUMSGPAGE 32
 
 typedef struct {
-  struct page *userpg[NUMSGPAGE];
-  struct scatterlist slist[NUMSGPAGE];
-  unsigned int maxpg;
-  struct usb_sg_request sgreq;
-  struct timer_list timer;
-  struct semaphore sem;
+	struct page *userpg[NUMSGPAGE];
+	struct scatterlist slist[NUMSGPAGE];
+	unsigned int maxpg;
+	struct usb_sg_request sgreq;
+	struct timer_list timer;
+	struct semaphore sem;
 } fliusbsg_t;
 
 #endif /* SGREAD */
 
 typedef struct {
-  /* Bulk transfer pipes used for read()/write() */
-  unsigned int rdbulkpipe;
-  unsigned int wrbulkpipe;
+	/* Bulk transfer pipes used for read()/write() */
+	unsigned int rdbulkpipe;
+	unsigned int wrbulkpipe;
 
-  /* Kernel buffer used for bulk reads */
-  void *buffer;
-  unsigned int buffersize;
-  struct semaphore buffsem;
+	/* Kernel buffer used for bulk reads */
+	void *buffer;
+	unsigned int buffersize;
+	struct semaphore buffsem;
 
 #ifdef SGREAD
-  fliusbsg_t usbsg;
+	fliusbsg_t usbsg;
 #endif
 
-  unsigned int timeout;	/* timeout for bulk transfers in milliseconds */
+	unsigned int timeout;	/* timeout for bulk transfers in milliseconds */
 
-  struct usb_device *usbdev;
-  struct usb_interface *interface;
+	struct usb_device *usbdev;
+	struct usb_interface *interface;
 
-  struct kref kref;
+	struct kref kref;
 } fliusb_t;
 
 #define FLIUSB_ERR(fmt, args...) \
-  printk(KERN_ERR "%s[%d]: " fmt "\n", __FUNCTION__, __LINE__ , ##args)
+	printk(KERN_ERR "%s[%d]: " fmt "\n", __FUNCTION__, __LINE__ , ##args)
 
 #define FLIUSB_WARN(fmt, args...) \
-  printk(KERN_WARNING "%s[%d]: " fmt "\n", __FUNCTION__, __LINE__ , ##args)
+	printk(KERN_WARNING "%s[%d]: " fmt "\n", __FUNCTION__, __LINE__ , ##args)
 
 #define FLIUSB_INFO(fmt, args...) \
-  printk(KERN_NOTICE "%s[%d]: " fmt "\n", __FUNCTION__, __LINE__ , ##args)
+	printk(KERN_NOTICE "%s[%d]: " fmt "\n", __FUNCTION__, __LINE__ , ##args)
 
 #ifdef DEBUG
-#define FLIUSB_DBG(fmt, args...) FLIUSB_INFO(fmt , ##args)
+	#define FLIUSB_DBG(fmt, args...) FLIUSB_INFO(fmt , ##args)
 #else
-#define FLIUSB_DBG(fmt, args...)  do {} while (0)
+	#define FLIUSB_DBG(fmt, args...)  do {} while (0)
 #endif
 
 #endif /* _FLIUSB_H_ */
