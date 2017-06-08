@@ -68,27 +68,13 @@
 #endif
 
 /* Module parameters */
-typedef struct {
-	unsigned int buffersize;
-	unsigned int timeout;
-} fliusb_param_t;
+static unsigned int param_buffersize = FLIUSB_BUFFERSIZE;
+module_param_named(buffersize, param_buffersize, uint, S_IRUGO);
+MODULE_PARM_DESC(buffersize, "USB bulk transfer buffer size");
 
-static fliusb_param_t defaults = {
-	.buffersize	= FLIUSB_BUFFERSIZE,
-	.timeout	= FLIUSB_TIMEOUT,
-};
-
-#define FLIUSB_MOD_PARAMETERS						     \
-	FLIUSB_MOD_PARAM(buffersize, uint, "USB bulk transfer buffer size")	     \
-	FLIUSB_MOD_PARAM(timeout, uint, "USB bulk transfer timeout (msec)")
-
-#define FLIUSB_MOD_PARAM(var, type, desc) 		\
-	module_param_named(var, defaults.var, type, S_IRUGO);	\
-	MODULE_PARM_DESC(var, desc);
-
-FLIUSB_MOD_PARAMETERS;
-
-#undef FLIUSB_MOD_PARAM
+static unsigned int param_timeout = FLIUSB_TIMEOUT;
+module_param_named(timeout, param_timeout, uint, S_IRUGO);
+MODULE_PARM_DESC(timeout, "USB bulk transfer timeout (msec)");
 
 /* Forward declarations */
 static struct usb_driver fliusb_driver;
@@ -649,7 +635,7 @@ static int fliusb_initdev(fliusb_t **dev, struct usb_interface *interface,
 
 	tmpdev->usbdev = usb_get_dev(interface_to_usbdev(interface));
 	tmpdev->interface = interface;
-	tmpdev->timeout = defaults.timeout;
+	tmpdev->timeout = param_timeout;
 
 	switch (id->idProduct) {
 	case FLIUSB_MAXCAM_PRODID:
@@ -688,7 +674,7 @@ static int fliusb_initdev(fliusb_t **dev, struct usb_interface *interface,
 	}
 
 	init_MUTEX(&tmpdev->buffsem);
-	if ((err = fliusb_allocbuffer(tmpdev, defaults.buffersize)))
+	if ((err = fliusb_allocbuffer(tmpdev, param_buffersize)))
 		goto fail;
 
 #ifdef SGREAD
