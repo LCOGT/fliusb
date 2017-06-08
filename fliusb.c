@@ -67,25 +67,11 @@
 
 #define FLIUSB_VENDORID			0x0f18
 
-/* Recognized FLI USB products */
-
-/* FLIUSB_PROD(name, prodid) */
-#define FLIUSB_PRODUCTS				\
-  FLIUSB_PROD(FLIUSB_MAXCAM,		0x0002)	\
-  FLIUSB_PROD(FLIUSB_STEPPER,		0x0005)	\
-  FLIUSB_PROD(FLIUSB_FOCUSER,		0x0006)	\
-  FLIUSB_PROD(FLIUSB_FILTERWHEEL,	0x0007)	\
-  FLIUSB_PROD(FLIUSB_PROLINECAM,	0x000a)
-
-enum {
-
-#define FLIUSB_PROD(name, prodid) name ## _PRODID = prodid,
-
-	FLIUSB_PRODUCTS
-
-#undef FLIUSB_PROD
-
-};
+#define FLIUSB_PRODID_MAXCAM		0x0002
+#define FLIUSB_PRODID_STEPPER		0x0005
+#define FLIUSB_PRODID_FOCUSER		0x0006
+#define FLIUSB_PRODID_FILTERWHEEL	0x0007
+#define FLIUSB_PRODID_PROLINECAM	0x000a
 
 /* Default values (module parameters override these) */
 #define FLIUSB_TIMEOUT 5000	/* milliseconds */
@@ -700,23 +686,6 @@ static int fliusb_initdev(fliusb_t **dev, struct usb_interface *interface,
 	int err;
 	char prodstr[64] = "unknown";
 
-	/* These vendor/product ID checks shouldn't be necessary */
-	if (id->idVendor != FLIUSB_VENDORID) {
-		FLIUSB_WARN("unexpectedly probing a non-FLI USB device");
-		return -EINVAL;
-	}
-
-	switch (id->idProduct) {
-#define FLIUSB_PROD(name, prodid) case name ## _PRODID:
-		FLIUSB_PRODUCTS
-#undef FLIUSB_PROD
-		break;
-
-	default:
-		FLIUSB_WARN("unsupported FLI USB device");
-		return -EINVAL;
-	}
-
 	if ((tmpdev = kmalloc(sizeof(fliusb_t), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
 
@@ -728,15 +697,15 @@ static int fliusb_initdev(fliusb_t **dev, struct usb_interface *interface,
 	tmpdev->timeout = param_timeout;
 
 	switch (id->idProduct) {
-	case FLIUSB_MAXCAM_PRODID:
-	case FLIUSB_STEPPER_PRODID:
-	case FLIUSB_FOCUSER_PRODID:
-	case FLIUSB_FILTERWHEEL_PRODID:
+	case FLIUSB_PRODID_MAXCAM:
+	case FLIUSB_PRODID_STEPPER:
+	case FLIUSB_PRODID_FOCUSER:
+	case FLIUSB_PRODID_FILTERWHEEL:
 		tmpdev->rdbulkpipe = usb_rcvbulkpipe(tmpdev->usbdev, FLIUSB_RDEPADDR);
 		tmpdev->wrbulkpipe = usb_sndbulkpipe(tmpdev->usbdev, FLIUSB_WREPADDR);
 		break;
 
-	case FLIUSB_PROLINECAM_PRODID:
+	case FLIUSB_PRODID_PROLINECAM:
 		tmpdev->rdbulkpipe = usb_rcvbulkpipe(tmpdev->usbdev, FLIUSB_PROLINE_RDEPADDR);
 		tmpdev->wrbulkpipe = usb_sndbulkpipe(tmpdev->usbdev, FLIUSB_PROLINE_WREPADDR);
 		break;
@@ -852,13 +821,13 @@ static void fliusb_disconnect(struct usb_interface *interface)
 }
 
 /* Devices supported by this driver */
-static struct usb_device_id fliusb_table [] = {
-
-#define FLIUSB_PROD(name, prodid) {USB_DEVICE(FLIUSB_VENDORID, prodid)},
-	FLIUSB_PRODUCTS
-#undef FLIUSB_PROD
-
-	{},				/* Terminating entry */
+static struct usb_device_id fliusb_table[] = {
+	{ USB_DEVICE(FLIUSB_VENDORID, FLIUSB_PRODID_MAXCAM) },
+	{ USB_DEVICE(FLIUSB_VENDORID, FLIUSB_PRODID_STEPPER) },
+	{ USB_DEVICE(FLIUSB_VENDORID, FLIUSB_PRODID_FOCUSER) },
+	{ USB_DEVICE(FLIUSB_VENDORID, FLIUSB_PRODID_FILTERWHEEL) },
+	{ USB_DEVICE(FLIUSB_VENDORID, FLIUSB_PRODID_PROLINECAM) },
+	{}, /* Terminating entry */
 };
 
 MODULE_DEVICE_TABLE(usb, fliusb_table);
