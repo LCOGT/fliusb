@@ -770,4 +770,4 @@ module_exit(fliusb_exit);
 
 MODULE_AUTHOR("Finger Lakes Instrumentation, L.L.C. <support@flicamera.com>");
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_VERSION("1.3");
+MODULE_VERSION("2.0");
