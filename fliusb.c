@@ -397,10 +397,18 @@ static int fliusb_bulk_write(struct fliusb_dev *dev, unsigned int pipe,
 
 	/* a simple blocking bulk write */
 	if ((err = usb_bulk_msg(dev->usbdev, pipe, dev->buffer, count, &cnt, timeout))) {
+		FLIUSB_DBG("usb_bulk_msg failed with ret=%d", err);
 		cnt = err;
+
+		// if the device disappeared, then we simply exit the write
+		err = usb_lock_device_for_reset(dev->usbdev, dev->interface);
+		if (err)
+			goto done;
+
 		// reset USB in case of an error
 		err = usb_reset_configuration (dev->usbdev);
 		FLIUSB_DBG("configuration return: %d", err);
+		usb_unlock_device(dev->usbdev);
 	}
 
 done:
