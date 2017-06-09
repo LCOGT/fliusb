@@ -279,13 +279,25 @@ static int fliusb_sg_bulk_read(struct fliusb_dev *dev, unsigned int pipe,
 	int err, i;
 	unsigned int numpg;
 	size_t pgoffset;
+	unsigned int maxpacket;
+
+	/*
+	 * Avoid a divide-by-zero problem when the endpoint disappears by
+	 * checking to make sure that the maxpacket value is > 0
+	 */
+	maxpacket = usb_maxpacket(dev->usbdev, pipe, 0);
+	if (maxpacket <= 0) {
+		FLIUSB_ERR("device disappeared / crashed");
+		return -ESHUTDOWN;
+	}
 
 	/*
 	 * userbuffer must be aligned to a multiple of the endpoint's
 	 * maximum packet size
 	 */
-	if ((size_t)userbuffer % usb_maxpacket(dev->usbdev, pipe, 0)) {
-		FLIUSB_ERR("user buffer is not properly aligned: 0x%p %% 0x%04x", userbuffer, usb_maxpacket(dev->usbdev, pipe, 0));
+
+	if ((size_t)userbuffer % maxpacket) {
+		FLIUSB_ERR("user buffer is not properly aligned: 0x%p %% 0x%04x", userbuffer, maxpacket);
 		return -EINVAL;
 	}
 
