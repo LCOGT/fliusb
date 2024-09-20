@@ -94,26 +94,26 @@ RPM Build Instructions
 
 Ensure you have the necessary rpmtools installed. For example on a rocky 9 machine
 
-   sudo dnf install rpm-build rpmdevtools
+   `sudo dnf install rpm-build rpmdevtools`
 
 Set up the rpm build environment (if it does not already exist).
 
-   rpmdev-setuptree
+   `rpmdev-setuptree`
 
 Make a temporary copy of this source directory called fliusb-{version-number} then create a tarball of that directory in the rpmbuild/SOURCES directory, for example:
 
-   tar -czvf ~/rpmbuild/SOURCES/fliusb-2.2.tar.gz fliusb-2.2/
+   `tar -czvf ~/rpmbuild/SOURCES/fliusb-2.2.tar.gz fliusb-2.2/`
 
 Copy the spec file into ~/rpmbuild/SPECS
 
-   cp fliusb.spec ~/rpmbuild/SPECS
+   `cp fliusb.spec ~/rpmbuild/SPECS`
 
 Build the rpm 
 
-   rpmbuild -ba ~/rpmbuild/SPECS/appname.spec
+   `rpmbuild -ba ~/rpmbuild/SPECS/appname.spec`
 
 The built rpm can be found in ~/rpmbuild/RPMS/noarch for example
 
-   ~/rpmbuild/RPMS/noarch/fliusb-2.2-lcogt.noarch.rpm
+   `~/rpmbuild/RPMS/noarch/fliusb-2.2-lcogt.noarch.rpm`
 
 This can be installed and the kernel module built on the target machine.
