@@ -11,6 +11,8 @@ through `read()`/`write()` system calls or by using `ioctl()`.
 Modifications
 =============
 
+This project builds on the vendor supplied release version 1.5 of fliusb from https://flicamera.com/support/support.php
+
 This driver has been modified by the Las Cumbres Observatory (LCO) to make
 it work with newer Linux kernel versions with more modern features.
 
@@ -86,3 +88,32 @@ recognized.
 `FLIUSB_BULKWRITE`		Perform a bulk write.
 
 `FLIUSB_GET_DEVICE_DESCRIPTOR`	Get the USB device descriptor.
+
+RPM Build Instructions
+======================
+
+Ensure you have the necessary rpmtools installed. For example on a rocky 9 machine
+
+   `sudo dnf install rpm-build rpmdevtools`
+
+Set up the rpm build environment (if it does not already exist).
+
+   `rpmdev-setuptree`
+
+Make a temporary copy of this source directory called fliusb-{version-number} then create a tarball of that directory in the rpmbuild/SOURCES directory, for example:
+
+   `tar -czvf ~/rpmbuild/SOURCES/fliusb-2.2.tar.gz fliusb-2.2/`
+
+Copy the spec file into ~/rpmbuild/SPECS
+
+   `cp fliusb.spec ~/rpmbuild/SPECS`
+
+Build the rpm 
+
+   `rpmbuild -ba ~/rpmbuild/SPECS/appname.spec`
+
+The built rpm can be found in ~/rpmbuild/RPMS/noarch for example
+
+   `~/rpmbuild/RPMS/noarch/fliusb-2.2-lcogt.noarch.rpm`
+
+This can be installed and the kernel module built on the target machine.

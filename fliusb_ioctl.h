@@ -48,16 +48,16 @@
 
 /* Structure to describe string descriptor transfers */
 typedef struct {
-	unsigned int index;
-	char buf[64];
+  unsigned int index;
+  char buf[64];
 } fliusb_string_descriptor_t;
 
 /* Structure to describe bulk transfers */
 typedef struct {
-	u_int8_t ep;
-	void *buf;
-	size_t count;
-	unsigned int timeout;		/* in msec */
+  u_int8_t ep;
+  void *buf;
+  size_t count;
+  unsigned int timeout;		/* in msec */
 } fliusb_bulktransfer_t;
 
 /* 8-bit special value to identify ioctl 'type' */
