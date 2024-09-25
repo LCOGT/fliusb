@@ -2,3 +2,4 @@
 *.ko
 Module.symvers
 modules.order
+.fliusb.o.d
