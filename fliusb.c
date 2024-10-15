@@ -65,7 +65,7 @@
 
 MODULE_AUTHOR("Finger Lakes Instrumentation, L.L.C. <support@flicamera.com>");
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_VERSION("1.5");
+MODULE_VERSION("2.2.2");
 
 /* initMUTEX was removed in 2.6.37 */
 
