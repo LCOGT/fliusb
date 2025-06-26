@@ -337,7 +337,7 @@ static int fliusb_sg_bulk_read(fliusb_t *dev, unsigned int pipe,
 
   down_read(&current->mm->mmap_lock);
   numpg = get_user_pages((size_t)userbuffer & PAGE_MASK,
-			 numpg, FOLL_WRITE, dev->usbsg.userpg, NULL);
+			 numpg, FOLL_WRITE, dev->usbsg.userpg);
   up_read(&current->mm->mmap_lock);
 
   if (numpg <= 0)
