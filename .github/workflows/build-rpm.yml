@@ -77,22 +77,25 @@ jobs:
         find ~/rpmbuild/RPMS -name "*.rpm" -ls
         find ~/rpmbuild/SRPMS -name "*.rpm" -ls
 
+    - name: Copy RPMs to workspace
+      run: |
+        mkdir -p ./rpms
+        cp ~/rpmbuild/RPMS/noarch/*.rpm ./rpms/ 2>/dev/null || true
+        cp ~/rpmbuild/SRPMS/*.rpm ./rpms/ 2>/dev/null || true
+        ls -la ./rpms/
+
     - name: Upload RPM artifacts
       uses: actions/upload-artifact@v4
       with:
         name: fliusb-rpm-${{ steps.version.outputs.version }}
-        path: |
-          ~/rpmbuild/RPMS/noarch/*.rpm
-          ~/rpmbuild/SRPMS/*.rpm
+        path: ./rpms/*.rpm
         retention-days: 90
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: |
-          ~/rpmbuild/RPMS/noarch/*.rpm
-          ~/rpmbuild/SRPMS/*.rpm
+        files: ./rpms/*.rpm
         draft: false
         prerelease: false
         generate_release_notes: true
