@@ -1,0 +1,100 @@
+name: Build RPM Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]+.[0-9]+*'
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-latest
+    container:
+      image: rockylinux:9
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install RPM build tools
+      run: |
+        dnf install -y rpm-build rpmdevtools make gcc kernel-devel tar gzip
+
+    - name: Set up RPM build environment
+      run: |
+        rpmdev-setuptree
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        # Extract version from tag (remove 'v' prefix if present)
+        VERSION=${GITHUB_REF#refs/tags/}
+        VERSION=${VERSION#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
+
+    - name: Update spec file version
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        # Update version in spec file to match the tag
+        sed -i "s/^Version:.*/Version:        ${VERSION}/" fliusb.spec
+        cat fliusb.spec
+
+    - name: Create source directory and tarball
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        SOURCE_DIR="fliusb-${VERSION}"
+
+        # Create temporary directory with version name
+        mkdir -p "/tmp/${SOURCE_DIR}"
+
+        # Copy all files except .git and build artifacts
+        cp -r . "/tmp/${SOURCE_DIR}/" || true
+        cd "/tmp/${SOURCE_DIR}"
+        rm -rf .git .github *.rpm .idea
+
+        # Create tarball in rpmbuild/SOURCES
+        cd /tmp
+        tar -czvf ~/rpmbuild/SOURCES/fliusb-${VERSION}.tar.gz "${SOURCE_DIR}/"
+
+        # List contents to verify
+        echo "Created tarball contents:"
+        tar -tzvf ~/rpmbuild/SOURCES/fliusb-${VERSION}.tar.gz
+
+    - name: Copy spec file
+      run: |
+        cp fliusb.spec ~/rpmbuild/SPECS/
+
+    - name: Build RPM
+      run: |
+        rpmbuild -ba ~/rpmbuild/SPECS/fliusb.spec
+
+    - name: List built packages
+      run: |
+        echo "Built RPM packages:"
+        find ~/rpmbuild/RPMS -name "*.rpm" -ls
+        find ~/rpmbuild/SRPMS -name "*.rpm" -ls
+
+    - name: Upload RPM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: fliusb-rpm-${{ steps.version.outputs.version }}
+        path: |
+          ~/rpmbuild/RPMS/noarch/*.rpm
+          ~/rpmbuild/SRPMS/*.rpm
+        retention-days: 90
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          ~/rpmbuild/RPMS/noarch/*.rpm
+          ~/rpmbuild/SRPMS/*.rpm
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
